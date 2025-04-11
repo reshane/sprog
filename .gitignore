@@ -1,0 +1,5 @@
+.cargo/config.toml
+*/target/*
+target/*
+*/dist/*
+test.db
