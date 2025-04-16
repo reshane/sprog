@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <meta charset="utf-8" />
+        <title>Grundit</title>
+    </head>
+    <body style="background-color: #181818; color: #eeeeee; font-family: sans-serif;">
+        <main>
+            <h2>Grundit</h2>
+            <div>
+                <div id="navBar" class="navBar">
+                    <button id='NAV-PROFILE' class="navLink active">Profile</button>
+                    <button id='NAV-EXPLORE' class="navLink" >Explore</button>
+                </div>
+            </div>
+            <div>
+                <div id="PROFILE" class="navContent active" style="display: block;">
+                    <h2>Profile</h2>
+                    <span id="profile-container">
+                    </span>
+                </div>
+                <div id="EXPLORE" class="navContent" style="display: none;">
+                    <h2>Explore</h2>
+                    <span id="explore-container">
+                    </span>
+                </div>
+            </div>
+            <canvas id="canvas"></canvas>
+        </main>
+        <script type="module" src='/web/index.js'></script>
+    </body>
+</html>
+
+<!-- 
+        <script>
+        // switch between different panes - navBar
+        function openPane(evt, navContentName) {
+            refreshNavContent(navContentName);
+            var i, navLinks, navContents;
+            // update the active pane
+            navContents = document.getElementsByClassName("navContent")
+            for (i = 0; i < navContents.length; i++) {
+                navContents[i].style.display = "none";
+                navContents[i].className = navContents[i].className.replace("active", "");
+            }
+            // update the active pane link
+            navLinks = document.getElementsByClassName("navLinks")
+            for (i = 0; i < navLinks.length; i++) {
+                navLinks[i].style.display = "none";
+                navLinks[i].className = navLinks[i].className.replace(" active", "");
+            }
+            document.getElementById(navContentName).style.display = "block";
+            document.getElementById(navContentName).className += " active";
+            evt.currentTarget.className += " active";
+        }
+
+        function refreshNavContent(navContentName) {
+            switch (navContentName) {
+                case "EXPLORE":
+                    fetchExplore();
+                break;
+                case "PROFILE":
+                    fetchProfile();
+                break;
+                default:
+                    console.log("Unknown nav content name:", navContentName);
+            }
+        }
+
+        function fetchComments(evt) {
+            // hide all the other comment containers
+            var i;
+            const allCommentsContainers = document.querySelectorAll('#commentsContainer');
+            for (i = 0; i < allCommentsContainers.length; i++) {
+                const container = allCommentsContainers[i];
+                container.style.display = "none";
+            }
+
+            const noteContainer = evt.currentTarget.parentNode;
+            const commentsContainer = noteContainer.querySelector("#commentsContainer");
+            commentsContainer.replaceChildren();
+            commentsContainer.style.display = "block";
+            const requestUri = '/data/comment?byNoteId=' + noteContainer.id;
+            fetch(requestUri, {
+                method: 'GET', // or 'GET', 'PUT', 'DELETE'
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                // body: JSON.stringify({ key: 'value' }) // Only for methods with body (e.g., POST, PUT)
+            })
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error(`HTTP error! status: ${response.status}`);
+                    }
+                    return response.json();
+                })
+                .then(comments => {
+                    var i;
+                    commentsContainer.replaceChildren();
+                    for (i = 0; i < comments.length; i++) {
+                        const comment = comments[i];
+                        const commentContainer = document.createElement("div");
+                        commentContainer.id = comment.id;
+                        const commentContents = document.createElement("p");
+                        commentContents.innerText = comment.contents;
+                        commentContainer.appendChild(commentContents);
+                        commentsContainer.appendChild(commentContainer);
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                });
+        }
+
+        // fetch data for explore pane
+        function fetchExplore() {
+            fetch('/data/note', {
+                method: 'GET', // or 'GET', 'PUT', 'DELETE'
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                // body: JSON.stringify({ key: 'value' }) // Only for methods with body (e.g., POST, PUT)
+            })
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error(`HTTP error! status: ${response.status}`);
+                    }
+                    return response.json();
+                })
+                .then(notes => {
+                    var i;
+                    const exploreContainer = document.getElementById("explore-container");
+                    exploreContainer.replaceChildren();
+                    for (i = 0; i < notes.length; i++) {
+                        const noteContainer = document.createElement("div");
+                        noteContainer.id = notes[i].id;
+                        const noteContents = document.createElement("p");
+                        noteContents.innerText = notes[i].contents;
+                        const showComments = document.createElement("button");
+                        showComments.innerText = "comments";
+                        showComments.onclick = fetchComments;
+                        const commentsContainer = document.createElement("div");
+                        commentsContainer.id = "commentsContainer";
+                        noteContainer.appendChild(noteContents);
+                        noteContainer.appendChild(showComments);
+                        noteContainer.appendChild(commentsContainer);
+                        exploreContainer.appendChild(noteContainer);
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                });
+        }
+
+        // Fetch the user data for the Profile page
+        function fetchProfile() {
+            fetch('/data/whoami', {
+                method: 'GET', // or 'GET', 'PUT', 'DELETE'
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                // body: JSON.stringify({ key: 'value' }) // Only for methods with body (e.g., POST, PUT)
+            })
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error(`HTTP error! status: ${response.status}`);
+                    }
+                    return response.json();
+                })
+                .then(userData => {
+                    const profileContainer = document.getElementById("profile-container");
+                    profileContainer.replaceChildren();
+                    const profilePic = document.createElement("img");
+                    profilePic.src = userData["picture"];
+                    profileContainer.appendChild(profilePic);
+                    const userName = document.createElement("div");
+                    userName.id = "profileUserName";
+                    userName.innerText = userData["name"];
+                    profileContainer.appendChild(userName);
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                });
+        }
+
+        fetchProfile();
+        </script>
+-->

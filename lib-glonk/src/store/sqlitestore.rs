@@ -2,9 +2,9 @@ use sqlite::{Connection, Value};
 use std::sync::Mutex;
 use tracing::debug;
 
-use crate::{RequestObject, types::DataObject};
+use crate::types::{RequestObject, DataObject, Query};
 
-use super::{Query, QueryTypes, Store, error::StoreResult};
+use super::{Store, error::StoreResult};
 
 pub struct SqliteStore {
     conn: Mutex<Connection>,
@@ -51,18 +51,28 @@ impl Store for SqliteStore {
                 return Err(crate::store::error::StoreError::NotCreated);
             }
         };
+        let owner_id = match data.owner_id() {
+            Some(owner_id) => owner_id,
+            None => {
+                println!("No owner_id on request onject");
+                return Err(crate::store::error::StoreError::NotCreated);
+            }
+        };
         let query = format!(
-            "UPDATE {} SET ({}) = ({}) where {} = :id returning {}",
+            "UPDATE {} SET ({}) = ({}) where ({} = :id and {} = :owner_id) returning {}",
             T::table_name(),
             data.sql_cols(),
             data.sql_placeholders(),
             T::id_col(),
+            T::owner_id_col(),
             T::sql_cols()
         );
+        debug!("{:?}", query);
         if let Ok(conn) = self.conn.lock() {
             let mut statement = conn.prepare(query).unwrap();
             statement.bind(data).unwrap();
             statement.bind((":id", id)).unwrap();
+            statement.bind((":owner_id", owner_id)).unwrap();
             let data: Vec<T> = T::from_rows(&mut statement);
             if data.len() >= 1 {
                 Ok(data[0].clone())
@@ -75,7 +85,7 @@ impl Store for SqliteStore {
     }
 
     fn get<T: DataObject>(&self, id: i64) -> Option<T> {
-        let query = format!("SELECT * FROM {} where id = ?", T::table_name());
+        let query = format!("SELECT * FROM {} where ({} = ?)", T::table_name(), T::id_col());
         if let Ok(conn) = self.conn.lock() {
             let mut statement = conn.prepare(query).unwrap();
             statement.bind((1, id)).unwrap();
@@ -90,7 +100,7 @@ impl Store for SqliteStore {
         }
     }
 
-    fn get_queries<T: DataObject>(&self, queries: Vec<QueryTypes>) -> Vec<T> {
+    fn get_queries<T: DataObject>(&self, queries: Vec<Box<dyn Query>>) -> Vec<T> {
         let mut clauses = vec![];
         let mut bindables = vec![];
         let mut i = 0;
@@ -120,15 +130,22 @@ impl Store for SqliteStore {
         }
     }
 
-    fn delete<T: DataObject>(&self, id: i64) -> StoreResult<T> {
+    fn delete<T: DataObject>(&self, id: i64, owner_id: Option<i64>) -> StoreResult<T> {
+        let (clauses, params) = match owner_id {
+            Some(owner_id) if T::owner_id_col() == T::id_col() => {
+                (format!("({} = ? and {} = ?)", T::id_col(), T::owner_id_col()), vec![(1, Value::Integer(id)),(2, Value::Integer(owner_id))])
+            },
+            Some(_) | None => (format!("({} = ?)", T::id_col()), vec![(1, Value::Integer(id))]),
+        };
         let query = format!(
-            "DELETE FROM {} where id = ? returning {}",
+            "DELETE FROM {} where {} returning {}",
             T::table_name(),
+            clauses,
             T::sql_cols()
         );
         if let Ok(conn) = self.conn.lock() {
             let mut statement = conn.prepare(query).unwrap();
-            statement.bind((1, id)).unwrap();
+            statement.bind::<&[(_, Value)]>(&params.as_slice()[..]).unwrap();
             let data: Vec<T> = T::from_rows(&mut statement);
             if data.len() >= 1 {
                 Ok(data[0].clone())

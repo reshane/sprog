@@ -1,3 +1,25 @@
 [workspace]
 resolver = "2"
-members = ["glonk", "splunge"]
+members = ["grundit", "lib-glonk", "splunge", "lib-grundit", "static/home"]
+
+[workspace.dependencies]
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0.140"
+
+axum = { version = "0.8.3", features = ["macros"] }
+axum-extra = { version = "0.10.1", features = ["cookie"] }
+oauth2 = { version = "5.0.0", features = ["reqwest"] }
+tower-http = { version = "0.6.2", features = ["fs"] }
+tower = { version = "0.5.2" }
+futures-util = { version = "0.3.31" }
+time = { version = "0.3.41" }
+tracing-subscriber = { version = "0.3.19", features = ["env-filter"] }
+tracing = "0.1.41"
+tokio = { version = "1.44.1", features = ["full"] }
+sqlite = "0.37.0"
+
+yew = { version = "0.21.0", features = ["csr"] }
+gloo-net = "0.2"
+wasm-bindgen-futures = "0.4"
+wasm-logger = "0.2.0"
+log = "0.4.27"

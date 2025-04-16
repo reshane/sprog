@@ -1,16 +1,11 @@
-// module declarations
-pub mod auth;
-pub mod config;
-pub mod error;
-mod store;
-pub mod types;
 
 // internal imports
-use crate::auth::google_auth::GoogleAuthClient;
-use crate::error::AuthrError;
-pub use crate::store::SqliteStore;
-use crate::store::{ExtractGlonkQueries, Store};
-use crate::types::{DataObject, DataType, Note, RequestNote, RequestObject, RequestUser, User};
+pub use crate::auth::google_auth::GoogleAuthClient;
+pub use crate::error::AuthrError;
+pub use crate::types::ExtractGlonkQueries;
+pub use crate::types::{DataType, RequestNote, RequestUser, RequestComment};
+use crate::types::{Note, User, Comment};
+use crate::auth;
 
 // imports
 use axum::http::StatusCode;
@@ -21,7 +16,7 @@ use axum::{
     response::IntoResponse,
     routing::{delete, get, post, put},
 };
-use axum::{debug_handler, middleware};
+use axum::middleware;
 use serde::Serialize;
 use std::{
     collections::HashMap,
@@ -34,18 +29,22 @@ use axum_extra::extract::CookieJar;
 use axum_extra::extract::cookie::Cookie;
 use axum::response::AppendHeaders;
 use axum::http::header::{LOCATION, SET_COOKIE};
+use lib_glonk::store::{Store, SqliteStore};
+use lib_glonk::types::{DataObject, RequestObject};
+use axum::extract::FromRequestParts;
+use axum::http::request::Parts;
 
 // state type
 pub struct AuthrState {
-    auth: Arc<AuthState>,
-    data: Arc<DataState>,
+    pub auth: Arc<AuthState>,
+    pub data: Arc<DataState>,
 }
 
 pub struct AuthState {
-    oauth_sessions: Mutex<HashMap<String, String>>,
-    sessions: Mutex<HashMap<String, (User, time::OffsetDateTime)>>,
-    google_client: GoogleAuthClient,
-    store: Arc<SqliteStore>,
+    pub(crate) oauth_sessions: Mutex<HashMap<String, String>>,
+    pub(crate) sessions: Mutex<HashMap<String, (User, time::OffsetDateTime)>>,
+    pub(crate) google_client: GoogleAuthClient,
+    pub(crate) store: Arc<SqliteStore>,
 }
 
 pub struct DataState {
@@ -82,13 +81,19 @@ async fn data_get_queries(
             let data = state.store.clone().get_queries::<Note>(queries);
             Json(data.clone()).into_response()
         }
+        DataType::Comment => {
+            let data = state.store.clone().get_queries::<Comment>(queries);
+            Json(data.clone()).into_response()
+        }
     }
 }
 
 async fn data_get(
     Path((data_type, id)): Path<(DataType, i64)>,
+    OwnerIdHeader(owner_id): OwnerIdHeader,
     State(state): State<Arc<DataState>>,
 ) -> impl IntoResponse {
+    info!("{:?}", owner_id);
     match data_type {
         DataType::User => {
             let data: Option<User> = state.store.clone().get(id);
@@ -104,23 +109,38 @@ async fn data_get(
                 None => AuthrError::NotFound.into_response(),
             }
         }
+        DataType::Comment => {
+            let data: Option<Comment> = state.store.clone().get(id);
+            match data {
+                Some(data) => Json(data.clone()).into_response(),
+                None => AuthrError::NotFound.into_response(),
+            }
+        }
     }
 }
 
 async fn data_delete(
     Path((data_type, id)): Path<(DataType, i64)>,
+    OwnerIdHeader(owner_id): OwnerIdHeader,
     State(state): State<Arc<DataState>>,
 ) -> impl IntoResponse {
     match data_type {
         DataType::User => {
-            let data = state.store.clone().delete::<User>(id);
+            let data = state.store.clone().delete::<User>(id, owner_id);
             match data {
                 Ok(data) => Json(data.clone()).into_response(),
                 Err(_) => AuthrError::NotFound.into_response(),
             }
         }
         DataType::Note => {
-            let data = state.store.clone().delete::<Note>(id);
+            let data = state.store.clone().delete::<Note>(id, owner_id);
+            match data {
+                Ok(data) => Json(data.clone()).into_response(),
+                Err(_) => AuthrError::NotFound.into_response(),
+            }
+        }
+        DataType::Comment => {
+            let data = state.store.clone().delete::<Comment>(id, owner_id);
             match data {
                 Ok(data) => Json(data.clone()).into_response(),
                 Err(_) => AuthrError::NotFound.into_response(),
@@ -132,8 +152,9 @@ async fn data_delete(
 async fn handle_create<R: RequestObject + Clone, T: DataObject + Serialize>(
     payload: R,
     state: Arc<DataState>,
+    owner_id: Option<i64>,
 ) -> impl IntoResponse {
-    if let Err(e) = payload.validate_create() {
+    if let Err(e) = payload.validate_create(owner_id) {
         error!("{:?}", e);
         return AuthrError::NotFound.into_response();
     }
@@ -146,12 +167,13 @@ async fn handle_create<R: RequestObject + Clone, T: DataObject + Serialize>(
 
 async fn data_create(
     Path(data_type): Path<DataType>,
+    OwnerIdHeader(owner_id): OwnerIdHeader,
     State(state): State<Arc<DataState>>,
     body: String,
 ) -> impl IntoResponse {
     match data_type {
         DataType::User => match serde_json::from_str::<RequestUser>(body.as_str()) {
-            Ok(payload) => handle_create::<_, User>(payload, state)
+            Ok(payload) => handle_create::<_, User>(payload, state, owner_id)
                 .await
                 .into_response(),
             Err(e) => {
@@ -160,7 +182,16 @@ async fn data_create(
             }
         },
         DataType::Note => match serde_json::from_str::<RequestNote>(body.as_str()) {
-            Ok(payload) => handle_create::<_, Note>(payload, state)
+            Ok(payload) => handle_create::<_, Note>(payload, state, owner_id)
+                .await
+                .into_response(),
+            Err(e) => {
+                error!("{:?}", e);
+                return (StatusCode::BAD_REQUEST, "Bad Request").into_response();
+            }
+        },
+        DataType::Comment => match serde_json::from_str::<RequestComment>(body.as_str()) {
+            Ok(payload) => handle_create::<_, Comment>(payload, state, owner_id)
                 .await
                 .into_response(),
             Err(e) => {
@@ -174,8 +205,9 @@ async fn data_create(
 async fn handle_update<R: RequestObject + Clone, T: DataObject + Serialize>(
     payload: R,
     state: Arc<DataState>,
+    owner_id: Option<i64>,
 ) -> impl IntoResponse {
-    if let Err(e) = payload.validate_update() {
+    if let Err(e) = payload.validate_update(owner_id) {
         error!("{:?}", e);
         return AuthrError::NotFound.into_response();
     }
@@ -188,12 +220,13 @@ async fn handle_update<R: RequestObject + Clone, T: DataObject + Serialize>(
 
 async fn data_update(
     Path(data_type): Path<DataType>,
+    OwnerIdHeader(owner_id): OwnerIdHeader,
     State(state): State<Arc<DataState>>,
     body: String,
 ) -> impl IntoResponse {
     match data_type {
         DataType::User => match serde_json::from_str::<RequestUser>(body.as_str()) {
-            Ok(payload) => handle_update::<_, User>(payload, state)
+            Ok(payload) => handle_update::<_, User>(payload, state, owner_id)
                 .await
                 .into_response(),
             Err(e) => {
@@ -202,7 +235,7 @@ async fn data_update(
             }
         },
         DataType::Note => match serde_json::from_str::<RequestNote>(body.as_str()) {
-            Ok(payload) => handle_update::<_, Note>(payload, state)
+            Ok(payload) => handle_update::<_, Note>(payload, state, owner_id)
                 .await
                 .into_response(),
             Err(e) => {
@@ -210,6 +243,33 @@ async fn data_update(
                 return (StatusCode::BAD_REQUEST, "Bad Request").into_response();
             }
         },
+        DataType::Comment => match serde_json::from_str::<RequestComment>(body.as_str()) {
+            Ok(payload) => handle_update::<_, Comment>(payload, state, owner_id)
+                .await
+                .into_response(),
+            Err(e) => {
+                error!("{:?}", e);
+                return (StatusCode::BAD_REQUEST, "Bad Request").into_response();
+            }
+        },
+    }
+}
+
+async fn whoami(
+    OwnerIdHeader(owner_id): OwnerIdHeader,
+    State(state): State<Arc<DataState>>,
+) -> impl IntoResponse {
+    let owner_id = match owner_id {
+        Some(oid) => oid,
+        None => {
+            error!("No owner_id specified for whoami endpoint");
+            return AuthrError::NotFound.into_response();
+        }
+    };
+    let data: Option<User> = state.store.clone().get(owner_id);
+    match data {
+        Some(data) => Json(data.clone()).into_response(),
+        None => AuthrError::NotFound.into_response(),
     }
 }
 
@@ -225,6 +285,7 @@ fn data_routes(state: Arc<DataState>) -> Router {
         .route("/{type}/{id}", delete(data_delete))
         .route("/{type}", post(data_create))
         .route("/{type}", put(data_update))
+        .route("/whoami", get(whoami))
         .with_state(state)
 }
 
@@ -271,20 +332,52 @@ pub async fn logout(
 pub async fn run(listener: TcpListener, state: AuthrState) {
     let state = Arc::new(state);
     let app = Router::new()
-        // data routes should only get the store in state
+        // routes behind auth
+        // data
         .nest_service("/data/", data_routes(state.data.clone()))
+        // static files
+        .nest_service("/web", ServeDir::new("./static/home").not_found_service(handle_not_found.into_service()))
+        // logout gets auth state 
         .route("/auth/logout", get(logout))
         .with_state(state.auth.clone())
+        // auth layer
         .route_layer(middleware::from_fn_with_state(
             state.auth.clone(),
             auth::request_authorizer,
         ))
-        // auth routes should get the store & the sessions
+        // no auth routes (login, etc.)
         .nest_service("/auth/", auth::routes(state.auth.clone()))
+        // fallback to static
         .fallback_service(
-            ServeDir::new("./splunge/dist").not_found_service(handle_not_found.into_service()),
+            ServeDir::new("./static/auth").not_found_service(handle_not_found.into_service()),
         );
 
     info!("Listening on {:?}", listener.local_addr());
     axum::serve(listener, app).await.unwrap();
+}
+
+pub struct OwnerIdHeader(Option<i64>);
+
+impl<S> FromRequestParts<S> for OwnerIdHeader
+where
+    S: Send + Sync,
+{
+    type Rejection = ();
+
+    async fn from_request_parts(parts: &mut Parts, _: &S) -> Result<Self, Self::Rejection> {
+        match parts.headers.get("Owner-Id") {
+            Some(val) => {
+                if let Ok(v_str) = val.to_str() {
+                    match v_str.parse::<i64>() {
+                        Ok(v) => Ok(OwnerIdHeader(Some(v))),
+                        Err(e) => {
+                            error!("{:?}", e);
+                            Err(())
+                        }
+                    }
+                } else { Err(()) }
+            },
+            None => Ok(OwnerIdHeader(None))
+        }
+    }
 }

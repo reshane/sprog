@@ -2,7 +2,7 @@ use std::{collections::HashMap, sync::Arc};
 
 use axum::{
     Router,
-    extract::{Query, State},
+    extract::{Query as UrlQuery, State},
     http::{
         StatusCode,
         header::{LOCATION, SET_COOKIE},
@@ -26,12 +26,11 @@ use oauth2::{
 use std::env;
 
 use crate::{
-    AuthState, Store,
-    error::AuthrError,
-    types::{QueryTypes, RequestUser, User, UserByGuid, UserQuery},
+    error::AuthrError, types::{DataType, QueryTypes, RequestUser, User}, app::AuthState,
 };
 use serde::{Deserialize, Serialize};
-use tracing::{debug, error, info};
+use tracing::{error, info};
+use lib_glonk::{types::Query, store::Store};
 
 // there has to be a way to get rid of this
 // type SetClient<
@@ -142,7 +141,7 @@ pub async fn login(State(state): State<Arc<AuthState>>) -> impl IntoResponse {
 }
 
 pub async fn callback(
-    Query(params): Query<HashMap<String, String>>,
+    UrlQuery(params): UrlQuery<HashMap<String, String>>,
     State(state): State<Arc<AuthState>>,
 ) -> impl IntoResponse {
     let csrf_token_header = params.get("state");
@@ -194,8 +193,6 @@ pub async fn callback(
         }
     };
 
-    debug!("{:?}", retrieved);
-
     // Generate a PKCE challenge for a new session_id & set cookie
     let (_pkce_challenge, pkce_verifier) = PkceCodeChallenge::new_random_sha256();
     let cookie_exp_duration = time::Duration::minutes(10);
@@ -228,7 +225,7 @@ pub async fn callback(
 
     (
         StatusCode::TEMPORARY_REDIRECT,
-        AppendHeaders([(SET_COOKIE, cookie.to_string().as_str()), (LOCATION, "/")]),
+        AppendHeaders([(SET_COOKIE, cookie.to_string().as_str()), (LOCATION, "/web")]),
     )
         .into_response()
 }
@@ -288,13 +285,16 @@ async fn get_google_user_info(
 
 async fn retrieve_or_create_user(user_info: GoogleUserInfo, state: Arc<AuthState>) -> Option<User> {
     let user = RequestUser::from(user_info);
+    let queries = vec![QueryTypes::try_from((&DataType::User, (&String::from("byGuid"), &user.guid.clone().unwrap())))].into_iter()
+        .filter_map(|qtr| { qtr.ok() })
+        .map(|qt| {
+            qt.into()
+        }).collect::<Vec<Box<dyn Query>>>();
     let mut retrieved: Vec<User> =
         state
             .store
             .clone()
-            .get_queries::<User>(vec![QueryTypes::UserQuery(UserQuery::ByGuid(
-                UserByGuid::new(user.guid.clone().unwrap()),
-            ))]);
+            .get_queries::<User>(queries);
     match retrieved.len() {
         1 => retrieved.pop(),
         0 => {

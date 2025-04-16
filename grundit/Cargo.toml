@@ -1,0 +1,22 @@
+[package]
+name = "grundit"
+version = "0.1.0"
+edition = "2024"
+default-run = "grundit"
+
+[[bin]]
+name = "grundit"
+path = "src/main.rs"
+
+[[bin]]
+name = "bootstrap"
+path = "src/bin/bootstrap.rs"
+
+[dependencies]
+tracing-subscriber.workspace = true
+tracing.workspace = true
+tokio.workspace = true
+sqlite.workspace = true
+lib-grundit = { path = "../lib-grundit", features = ["full"]}
+lib-glonk = { path = "../lib-glonk" }
+

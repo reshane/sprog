@@ -4,9 +4,10 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-yew = { version = "0.21.0", features = ["csr"] }
-gloo-net = "0.2"
-serde = { version = "1.0", features = ["derive"] }
-wasm-bindgen-futures = "0.4"
-wasm-logger = "0.2.0"
+yew.workspace = true
+gloo-net.workspace = true
+serde.workspace = true
+wasm-bindgen-futures.workspace = true
+wasm-logger.workspace = true
 log = "0.4.27"
+lib-grundit = { path = "../lib-grundit", features = ["raw-types"] }
