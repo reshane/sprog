@@ -1,0 +1,20 @@
+<!doctype html>
+<html>
+    <head>
+        <meta charset="utf-8" />
+        <title>Sprog</title>
+    <link rel="modulepreload" href="/splunge-ecdc224b80b3ccfd.js" crossorigin="anonymous" integrity="sha384-qzThRukuky2d0znLJciI34jAVJ2+oKT0uVe1a8AnpdSMQRWUtWWQ3LYteIvFgOOu"><link rel="preload" href="/splunge-ecdc224b80b3ccfd_bg.wasm" crossorigin="anonymous" integrity="sha384-JUMMnxxSsHZtVf48xi7YlLZnPzfLzf8D5Wj8j+29u/HYMCOIfmlSRzBhqpV/SRTp" as="fetch" type="application/wasm"></head>
+    <body style="background-color: #181818; color: #eeeeee; font-family: sans-serif;">
+    
+<script type="module">
+import init, * as bindings from '/splunge-ecdc224b80b3ccfd.js';
+const wasm = await init({ module_or_path: '/splunge-ecdc224b80b3ccfd_bg.wasm' });
+
+
+window.wasmBindings = bindings;
+
+
+dispatchEvent(new CustomEvent("TrunkApplicationStarted", {detail: {wasm}}));
+
+</script></body>
+</html>

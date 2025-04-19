@@ -4,7 +4,7 @@ use axum::{
 };
 use axum_extra::extract::CookieJar;
 use std::{cmp::Ordering, str::FromStr, sync::Arc};
-use tracing::{debug, error};
+use tracing::error;
 
 pub mod google_auth;
 

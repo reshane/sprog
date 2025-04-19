@@ -74,25 +74,52 @@ async fn get_user() -> Result<User, ()> {
 }
 
 pub async fn post_punch(punch: RequestPunch) -> Result<JsValue, JsValue> {
-    let options = wasm_request::get_options::<RequestPunch>(
-        "data/punch",
-        wasm_request::Method::POST,
-        None,
-        Some(wasm_request::DataType::Json(punch)),
-    );
+    let body_string = serde_json::to_string(&punch).unwrap();
+    let body = JsValue::from_str(&body_string);
+    let opts = RequestInit::new();
+    opts.set_method("POST");
+    opts.set_mode(RequestMode::Cors);
+    opts.set_body(&body);
 
-    match wasm_request::request(options).await {
-        Ok(resp) => Ok(resp),
-        Err(e) => {
-            console::error_1(&format!("{:?}", e).into());
-            Err(JsValue::null())
-        },
-    }
+    let url = format!("/data/punch");
+
+    let request = Request::new_with_str_and_init(&url, &opts)?;
+
+    request
+        .headers()
+        .set("Accept", "application/vnd.github.v3+json")?;
+
+    let window = web_sys::window().unwrap();
+    let resp_value = JsFuture::from(window.fetch_with_request(&request)).await?;
+
+    // `resp_value` is a `Response` object.
+    assert!(resp_value.is_instance_of::<Response>());
+    let resp: Response = resp_value.dyn_into().unwrap();
+
+    // Convert this other `Promise` into a rust `Future`.
+    let json = JsFuture::from(resp.json()?).await?;
+
+    // Send the JSON response back to JS.
+    Ok(json)
 }
 
-pub async fn post_punch_1(punch: RequestPunch) {
-    let ans = post_punch(punch).await;
-    console::log_1(&format!("{:?}", ans).into());
+pub async fn post_punch_1(punch: RequestPunch, mut punches: Vec<Punch>) {
+    let ans = match post_punch(punch).await {
+        Ok(ans) => ans,
+        Err(e) => {
+            console::error_1(&format!("{:?}", e).into());
+            return;
+        }
+    };
+    match serde_wasm_bindgen::from_value(ans) {
+        Ok(punch) => {
+            punches.push(punch);
+        }
+        Err(e) => {
+            console::error_1(&format!("{:?}", e).into());
+        }
+    }
+    console::log_1(&format!("{:?}", punches).into());
 }
 
 #[wasm_bindgen]
@@ -117,13 +144,14 @@ pub async fn run() -> Result<(), JsValue> {
                 owner_id: Some(user_data.id),
                 geo: Some(format!("timestamp: {}, lat: {} lon: {}", position.timestamp(), position.coords().latitude(), position.coords().longitude())),
             };
-            console::log_1(&format!("{:?}", &punch).into());
-            spawn_local(post_punch_1(punch));
+            spawn_local(post_punch_1(punch, vec![]));
         }
     }) as Box<dyn FnMut(Position)>);
 
     if let Ok(geo) = window().navigator().geolocation() {
         let _ = geo.get_current_position(position_callback.as_ref().unchecked_ref());
+    } else {
+        console::log_1(&format!("no golocation :(").into());
     }
 
     position_callback.forget();

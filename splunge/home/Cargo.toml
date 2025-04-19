@@ -1,5 +1,5 @@
 [package]
-name = "grundit-home"
+name = "splunge-home"
 version = "0.1.0"
 edition = "2024"
 
@@ -13,7 +13,6 @@ lib-grundit = { path = "../../lib-grundit", features = ["raw-types"] }
 serde.workspace = true
 serde-wasm-bindgen = "0.6.5"
 serde_json.workspace = true
-wasm_request = "0.1.1"
 
 [dependencies.web-sys]
 version = "0.3.77"

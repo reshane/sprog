@@ -1,5 +1,5 @@
 [package]
-name = "splunge"
+name = "splunge-console"
 version = "0.1.0"
 edition = "2024"
 
@@ -10,4 +10,4 @@ serde.workspace = true
 wasm-bindgen-futures.workspace = true
 wasm-logger.workspace = true
 log = "0.4.27"
-lib-grundit = { path = "../lib-grundit", features = ["raw-types"] }
+lib-grundit = { path = "../../lib-grundit", features = ["raw-types"] }

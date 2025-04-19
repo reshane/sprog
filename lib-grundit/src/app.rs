@@ -372,7 +372,7 @@ pub async fn run(listener: TcpListener, state: AuthrState) {
         // data
         .nest_service("/data/", data_routes(state.data.clone()))
         // static files
-        .nest_service("/web", ServeDir::new("./static/home").not_found_service(handle_not_found.into_service()))
+        .nest_service("/web", ServeDir::new("./splunge/home").not_found_service(handle_not_found.into_service()))
         // logout gets auth state 
         .route("/auth/logout", get(logout))
         .with_state(state.auth.clone())
@@ -385,7 +385,7 @@ pub async fn run(listener: TcpListener, state: AuthrState) {
         .nest_service("/auth/", auth::routes(state.auth.clone()))
         // fallback to static
         .fallback_service(
-            ServeDir::new("./static/auth").not_found_service(handle_not_found.into_service()),
+            ServeDir::new("./splunge/auth").not_found_service(handle_not_found.into_service()),
         );
 
     info!("Listening on {:?}", listener.local_addr());

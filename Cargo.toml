@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["grundit", "lib-glonk", "splunge", "lib-grundit", "static/home"]
+members = ["grundit", "lib-glonk", "splunge/home", "splunge/console", "lib-grundit"]
 
 [workspace.dependencies]
 serde = { version = "1.0", features = ["derive"] }
