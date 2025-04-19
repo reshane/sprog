@@ -27,6 +27,12 @@ fn main() {
             contents text,
             foreign key(owner_id) references users(id),
             foreign key(note_id) references notes(id));
+
+        CREATE TABLE punches (
+            id integer primary key autoincrement,
+            owner_id integer,
+            geo text,
+            foreign key(owner_id) references users(id));
     ";
     connection.execute(query).unwrap();
 }

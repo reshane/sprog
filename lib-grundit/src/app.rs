@@ -3,8 +3,8 @@
 pub use crate::auth::google_auth::GoogleAuthClient;
 pub use crate::error::AuthrError;
 pub use crate::types::ExtractGlonkQueries;
-pub use crate::types::{DataType, RequestNote, RequestUser, RequestComment};
-use crate::types::{Note, User, Comment};
+pub use crate::types::{DataType, RequestNote, RequestUser, RequestComment, RequestPunch};
+use crate::types::{Note, User, Comment, Punch};
 use crate::auth;
 
 // imports
@@ -85,6 +85,10 @@ async fn data_get_queries(
             let data = state.store.clone().get_queries::<Comment>(queries);
             Json(data.clone()).into_response()
         }
+        DataType::Punch => {
+            let data = state.store.clone().get_queries::<Punch>(queries);
+            Json(data.clone()).into_response()
+        }
     }
 }
 
@@ -116,6 +120,13 @@ async fn data_get(
                 None => AuthrError::NotFound.into_response(),
             }
         }
+        DataType::Punch => {
+            let data: Option<Punch> = state.store.clone().get(id);
+            match data {
+                Some(data) => Json(data.clone()).into_response(),
+                None => AuthrError::NotFound.into_response(),
+            }
+        }
     }
 }
 
@@ -141,6 +152,13 @@ async fn data_delete(
         }
         DataType::Comment => {
             let data = state.store.clone().delete::<Comment>(id, owner_id);
+            match data {
+                Ok(data) => Json(data.clone()).into_response(),
+                Err(_) => AuthrError::NotFound.into_response(),
+            }
+        }
+        DataType::Punch => {
+            let data = state.store.clone().delete::<Punch>(id, owner_id);
             match data {
                 Ok(data) => Json(data.clone()).into_response(),
                 Err(_) => AuthrError::NotFound.into_response(),
@@ -199,6 +217,15 @@ async fn data_create(
                 return (StatusCode::BAD_REQUEST, "Bad Request").into_response();
             }
         },
+        DataType::Punch => match serde_json::from_str::<RequestPunch>(body.as_str()) {
+            Ok(payload) => handle_create::<_, Punch>(payload, state, owner_id)
+                .await
+                .into_response(),
+            Err(e) => {
+                error!("{:?}", e);
+                return (StatusCode::BAD_REQUEST, "Bad Request").into_response();
+            }
+        },
     }
 }
 
@@ -245,6 +272,15 @@ async fn data_update(
         },
         DataType::Comment => match serde_json::from_str::<RequestComment>(body.as_str()) {
             Ok(payload) => handle_update::<_, Comment>(payload, state, owner_id)
+                .await
+                .into_response(),
+            Err(e) => {
+                error!("{:?}", e);
+                return (StatusCode::BAD_REQUEST, "Bad Request").into_response();
+            }
+        },
+        DataType::Punch => match serde_json::from_str::<RequestPunch>(body.as_str()) {
+            Ok(payload) => handle_update::<_, Punch>(payload, state, owner_id)
                 .await
                 .into_response(),
             Err(e) => {

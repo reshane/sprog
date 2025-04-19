@@ -1,6 +1,9 @@
 use wasm_bindgen::prelude::*;
 use std::{cell::RefCell, fmt::{Display, Formatter}, rc::Rc};
-use web_sys::HtmlCanvasElement;
+use web_sys::{console, HtmlCanvasElement, Position};
+use lib_grundit::types::{Punch, RequestPunch, User};
+use wasm_bindgen_futures::{spawn_local, JsFuture};
+use web_sys::{Request, RequestInit, RequestMode, Response};
 
 const CELL_SIZE: u32 = 5;
 const GRID_COLOR: &'static str = "#CCCCCC";
@@ -29,9 +32,101 @@ fn canvas() -> web_sys::HtmlCanvasElement {
         .unwrap()
 }
 
+pub async fn whoami() -> Result<JsValue, JsValue> {
+    let opts = RequestInit::new();
+    opts.set_method("GET");
+    opts.set_mode(RequestMode::Cors);
+
+    let url = format!("/data/whoami");
+
+    let request = Request::new_with_str_and_init(&url, &opts)?;
+
+    request
+        .headers()
+        .set("Accept", "application/vnd.github.v3+json")?;
+
+    let window = web_sys::window().unwrap();
+    let resp_value = JsFuture::from(window.fetch_with_request(&request)).await?;
+
+    // `resp_value` is a `Response` object.
+    assert!(resp_value.is_instance_of::<Response>());
+    let resp: Response = resp_value.dyn_into().unwrap();
+
+    // Convert this other `Promise` into a rust `Future`.
+    let json = JsFuture::from(resp.json()?).await?;
+
+    // Send the JSON response back to JS.
+    Ok(json)
+}
+
+async fn get_user() -> Result<User, ()> {
+    if let Ok(user_json) = whoami().await {
+        match serde_wasm_bindgen::from_value(user_json) {
+            Ok(user) => Ok(user),
+            Err(e) => {
+                console::error_1(&format!("{:?}", e).into());
+                Err(())
+            }
+        }
+    } else {
+        Err(())
+    }
+}
+
+pub async fn post_punch(punch: RequestPunch) -> Result<JsValue, JsValue> {
+    let options = wasm_request::get_options::<RequestPunch>(
+        "data/punch",
+        wasm_request::Method::POST,
+        None,
+        Some(wasm_request::DataType::Json(punch)),
+    );
+
+    match wasm_request::request(options).await {
+        Ok(resp) => Ok(resp),
+        Err(e) => {
+            console::error_1(&format!("{:?}", e).into());
+            Err(JsValue::null())
+        },
+    }
+}
+
+pub async fn post_punch_1(punch: RequestPunch) {
+    let ans = post_punch(punch).await;
+    console::log_1(&format!("{:?}", ans).into());
+}
+
 #[wasm_bindgen]
 pub async fn run() -> Result<(), JsValue> {
     let f = Rc::new(RefCell::new(None));
+    let user = Rc::new(RefCell::new(None));
+
+    {
+        match get_user().await {
+            Ok(user_data) => {
+                *user.borrow_mut() = Some(user_data);
+            },
+            Err(()) => {},
+        }
+    }
+
+    let position_callback = Closure::wrap(Box::new(move |position: Position| {
+        console::log_1(&format!("{:?}", user).into());
+        if let Some(ref user_data) = *user.borrow() {
+            let punch = RequestPunch {
+                id: None,
+                owner_id: Some(user_data.id),
+                geo: Some(format!("timestamp: {}, lat: {} lon: {}", position.timestamp(), position.coords().latitude(), position.coords().longitude())),
+            };
+            console::log_1(&format!("{:?}", &punch).into());
+            spawn_local(post_punch_1(punch));
+        }
+    }) as Box<dyn FnMut(Position)>);
+
+    if let Ok(geo) = window().navigator().geolocation() {
+        let _ = geo.get_current_position(position_callback.as_ref().unchecked_ref());
+    }
+
+    position_callback.forget();
 
     let g = f.clone();
     {
@@ -89,8 +184,8 @@ fn draw_cells(canvas: &HtmlCanvasElement, universe: &Universe) {
         for col in 0..width {
             let idx = universe.get_idx(row as usize, col as usize);
             ctx.set_fill_style_str(match universe.cells[idx] {
-            Cell::Dead => DEAD_COLOR,
-            Cell::Alive => ALIVE_COLOR,
+                Cell::Dead => DEAD_COLOR,
+                Cell::Alive => ALIVE_COLOR,
             });
 
             ctx.fill_rect(

@@ -47,8 +47,6 @@ pub async fn request_authorizer(
         }
     };
 
-    debug!("{:?}", user);
-
     let owner_id = format!("{}", user.id);
     let header_val = match HeaderValue::from_str(owner_id.as_str()) {
         Ok(v) => v,

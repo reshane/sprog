@@ -1,10 +1,12 @@
 mod user;
 mod note;
 mod comment;
+mod punch;
 
 pub use user::User;
 pub use note::Note;
 pub use comment::Comment;
+pub use punch::{RequestPunch, Punch};
 
 #[cfg(feature = "full")]
 pub use ext::*;
@@ -14,6 +16,7 @@ mod ext {
     pub use super::user::{RequestUser, UserByGuid, UserQuery};
     pub use super::note::{RequestNote, NoteQuery};
     pub use super::comment::{RequestComment, CommentQuery};
+    pub use super::punch::PunchQuery;
 
     use serde::Deserialize;
     use axum::{extract::{Query as UrlQuery, rejection::{PathRejection, QueryRejection}, FromRequestParts, Path}, http::request::Parts, response::IntoResponse};
@@ -30,6 +33,8 @@ mod ext {
         Note,
         #[serde(rename = "comment")]
         Comment,
+        #[serde(rename = "punch")]
+        Punch,
     }
 
     #[derive(Debug)]
@@ -37,6 +42,7 @@ mod ext {
         UserQuery(UserQuery),
         NoteQuery(NoteQuery),
         CommentQuery(CommentQuery),
+        PunchQuery(PunchQuery),
     }
 
     impl Query for QueryTypes {
@@ -45,6 +51,7 @@ mod ext {
                 Self::UserQuery(inner) => inner.build(),
                 Self::NoteQuery(inner) => inner.build(),
                 Self::CommentQuery(inner) => inner.build(),
+                Self::PunchQuery(inner) => inner.build(),
             }
         }
     }
@@ -65,6 +72,10 @@ mod ext {
                 DataType::Comment => {
                     let nq = CommentQuery::try_from((query, val))?;
                     Ok(QueryTypes::CommentQuery(nq))
+                }
+                DataType::Punch => {
+                    let nq = PunchQuery::try_from((query, val))?;
+                    Ok(QueryTypes::PunchQuery(nq))
                 }
             }
         }
