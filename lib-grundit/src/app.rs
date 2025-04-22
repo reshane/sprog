@@ -1,14 +1,18 @@
-
 // internal imports
+use crate::auth;
 pub use crate::auth::google_auth::GoogleAuthClient;
 pub use crate::error::AuthrError;
 pub use crate::types::ExtractGlonkQueries;
-pub use crate::types::{DataType, RequestNote, RequestUser, RequestComment, RequestPunch};
-use crate::types::{Note, User, Comment, Punch};
-use crate::auth;
+use crate::types::{Comment, Note, Punch, User};
+pub use crate::types::{DataType, RequestComment, RequestNote, RequestPunch, RequestUser};
 
 // imports
+use axum::extract::FromRequestParts;
 use axum::http::StatusCode;
+use axum::http::header::{LOCATION, SET_COOKIE};
+use axum::http::request::Parts;
+use axum::middleware;
+use axum::response::AppendHeaders;
 use axum::{
     Json, Router,
     extract::{Path, State},
@@ -16,7 +20,10 @@ use axum::{
     response::IntoResponse,
     routing::{delete, get, post, put},
 };
-use axum::middleware;
+use axum_extra::extract::CookieJar;
+use axum_extra::extract::cookie::Cookie;
+use lib_glonk::store::{SqliteStore, Store};
+use lib_glonk::types::{DataObject, RequestObject};
 use serde::Serialize;
 use std::{
     collections::HashMap,
@@ -25,14 +32,6 @@ use std::{
 use tokio::net::TcpListener;
 use tower_http::services::ServeDir;
 use tracing::{debug, error, info};
-use axum_extra::extract::CookieJar;
-use axum_extra::extract::cookie::Cookie;
-use axum::response::AppendHeaders;
-use axum::http::header::{LOCATION, SET_COOKIE};
-use lib_glonk::store::{Store, SqliteStore};
-use lib_glonk::types::{DataObject, RequestObject};
-use axum::extract::FromRequestParts;
-use axum::http::request::Parts;
 
 // state type
 pub struct AuthrState {
@@ -325,16 +324,13 @@ fn data_routes(state: Arc<DataState>) -> Router {
         .with_state(state)
 }
 
-pub async fn logout(
-    State(state): State<Arc<AuthState>>,
-    jar: CookieJar,
-) -> impl IntoResponse {
+pub async fn logout(State(state): State<Arc<AuthState>>, jar: CookieJar) -> impl IntoResponse {
     // get session id
     let session_id = match jar.get("session_id") {
         Some(cookie) => cookie.value_trimmed(),
         None => {
             return (StatusCode::BAD_REQUEST, "Missing session_id").into_response();
-        },
+        }
     };
     // invalidate session cache
     match state.sessions.lock() {
@@ -342,13 +338,16 @@ pub async fn logout(
             if let Some((user, _)) = sessions.remove(session_id) {
                 debug!("Logging out {:?}", user);
             } else {
-                error!("invalid session id made it through auth phase: {}", session_id);
+                error!(
+                    "invalid session id made it through auth phase: {}",
+                    session_id
+                );
             }
-        },
+        }
         Err(e) => {
             // report the error and invalidate the cookie
             error!("{:?}", e);
-        },
+        }
     }
     // revoke cookie
     let cookie = Cookie::build(("session_id", session_id))
@@ -364,7 +363,6 @@ pub async fn logout(
         .into_response()
 }
 
-
 pub async fn run(listener: TcpListener, state: AuthrState) {
     let state = Arc::new(state);
     let app = Router::new()
@@ -372,8 +370,11 @@ pub async fn run(listener: TcpListener, state: AuthrState) {
         // data
         .nest_service("/data/", data_routes(state.data.clone()))
         // static files
-        .nest_service("/web", ServeDir::new("./splunge/home").not_found_service(handle_not_found.into_service()))
-        // logout gets auth state 
+        .nest_service(
+            "/web",
+            ServeDir::new("./splunge/home").not_found_service(handle_not_found.into_service()),
+        )
+        // logout gets auth state
         .route("/auth/logout", get(logout))
         .with_state(state.auth.clone())
         // auth layer
@@ -411,9 +412,11 @@ where
                             Err(())
                         }
                     }
-                } else { Err(()) }
-            },
-            None => Ok(OwnerIdHeader(None))
+                } else {
+                    Err(())
+                }
+            }
+            None => Ok(OwnerIdHeader(None)),
         }
     }
 }

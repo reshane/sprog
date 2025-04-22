@@ -8,16 +8,30 @@ pub struct Comment {
     pub contents: String,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RequestComment {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    id: Option<i64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    owner_id: Option<i64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    note_id: Option<i64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    contents: Option<String>,
+}
+
 #[cfg(feature = "full")]
 pub use ext::*;
 
 #[cfg(feature = "full")]
 mod ext {
+    use super::{Comment, RequestComment};
+    use lib_glonk::types::{
+        ContainsCriteria, Criteria, DataObject, EqualsCriteria, Query, RequestObject,
+        ValidationError,
+    };
     use sqlite::{Bindable, BindableWithIndex, State, Value};
-    use lib_glonk::types::{ContainsCriteria, Criteria, DataObject, EqualsCriteria, Query, RequestObject, ValidationError};
-    use super::Comment;
     use tracing::error;
-    use serde::{Deserialize, Serialize};
 
     impl Bindable for Comment {
         fn bind(self, statement: &mut sqlite::Statement) -> sqlite::Result<()> {
@@ -58,13 +72,7 @@ mod ext {
             "owner_id".to_string()
         }
     }
-    #[derive(Debug, Clone, Serialize, Deserialize)]
-    pub struct RequestComment {
-        id: Option<i64>,
-        owner_id: Option<i64>,
-        note_id: Option<i64>,
-        contents: Option<String>,
-    }
+
     impl Bindable for RequestComment {
         fn bind(self, statement: &mut sqlite::Statement) -> sqlite::Result<()> {
             let mut idx = 1;
@@ -87,19 +95,20 @@ mod ext {
         }
     }
     impl RequestObject for RequestComment {
-        fn validate_create(&self, owner_id: Option<i64>) -> Result<(), lib_glonk::types::ValidationError> {
+        fn validate_create(
+            &self,
+            owner_id: Option<i64>,
+        ) -> Result<(), lib_glonk::types::ValidationError> {
             match self.owner_id {
-                Some(request_data_owner_id) => {
-                    match owner_id {
-                        Some(owner_id) if owner_id != request_data_owner_id => {
-                            return Err(ValidationError::InvalidOwnerId(format!(
-                                "request header owner_id ({}) does not match data owner_id ({})",
-                                request_data_owner_id, owner_id
-                            )));
-                        },
-                        Some(_) | None => {},
+                Some(request_data_owner_id) => match owner_id {
+                    Some(owner_id) if owner_id != request_data_owner_id => {
+                        return Err(ValidationError::InvalidOwnerId(format!(
+                            "request header owner_id ({}) does not match data owner_id ({})",
+                            request_data_owner_id, owner_id
+                        )));
                     }
-                }
+                    Some(_) | None => {}
+                },
                 None => {
                     return Err(ValidationError::MissingRequiredOnCreate(String::from(
                         "owner_id",
@@ -131,19 +140,20 @@ mod ext {
             Ok(())
         }
 
-        fn validate_update(&self, owner_id: Option<i64>) -> Result<(), lib_glonk::types::ValidationError> {
+        fn validate_update(
+            &self,
+            owner_id: Option<i64>,
+        ) -> Result<(), lib_glonk::types::ValidationError> {
             match self.owner_id {
-                Some(request_data_owner_id) => {
-                    match owner_id {
-                        Some(owner_id) if owner_id != request_data_owner_id => {
-                            return Err(ValidationError::InvalidOwnerId(format!(
-                                "request header owner_id ({}) does not match data owner_id ({})",
-                                request_data_owner_id, owner_id
-                            )));
-                        },
-                        Some(_) | None => {},
+                Some(request_data_owner_id) => match owner_id {
+                    Some(owner_id) if owner_id != request_data_owner_id => {
+                        return Err(ValidationError::InvalidOwnerId(format!(
+                            "request header owner_id ({}) does not match data owner_id ({})",
+                            request_data_owner_id, owner_id
+                        )));
                     }
-                }
+                    Some(_) | None => {}
+                },
                 None => {
                     return Err(ValidationError::MissingRequiredOnCreate(String::from(
                         "owner_id",
@@ -232,22 +242,22 @@ mod ext {
                         Err(e) => {
                             error!("{:?}", e);
                             return Err(());
-                        },
+                        }
                     };
                     Ok(Self::ByOwnerId(CommentByOwnerId::new(id)))
-                },
+                }
                 "byNoteId" => {
                     let id = match v.parse::<i64>() {
                         Ok(id) => id,
                         Err(e) => {
                             error!("{:?}", e);
                             return Err(());
-                        },
+                        }
                     };
                     Ok(Self::ByNoteId(CommentByNoteId::new(id)))
-                },
+                }
                 _ => {
-                    error!("Unrecognized query for Comment: {:?}", (q,v));
+                    error!("Unrecognized query for Comment: {:?}", (q, v));
                     Err(())
                 }
             }
@@ -258,14 +268,14 @@ mod ext {
     pub struct CommentByNoteId {
         inner: EqualsCriteria,
     }
-    
+
     impl CommentByNoteId {
         fn new(val: i64) -> Self {
             Self {
                 inner: EqualsCriteria {
                     field: String::from("note_id"),
                     val: Value::Integer(val),
-                }
+                },
             }
         }
     }
@@ -287,7 +297,7 @@ mod ext {
                 inner: EqualsCriteria {
                     field: String::from("owner_id"),
                     val: Value::Integer(val),
-                }
+                },
             }
         }
     }

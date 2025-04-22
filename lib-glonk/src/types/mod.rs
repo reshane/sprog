@@ -33,16 +33,16 @@ impl fmt::Display for ValidationError {
         match *self {
             ValidationError::MissingIdOnUpdate => {
                 write!(fmt, "id required for updates")
-            },
+            }
             ValidationError::MissingRequiredOnCreate(ref s) => {
                 write!(fmt, "missing required field `{}`", s)
-            },
+            }
             ValidationError::InvalidOwnerId(ref s) => {
                 write!(fmt, "{}", s)
-            },
+            }
             ValidationError::IdProvidedOnCreate => {
                 write!(fmt, "id must not be provided for create")
-            },
+            }
         }
     }
 }

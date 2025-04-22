@@ -1,6 +1,10 @@
 use crate::app::AuthState;
 use axum::{
-    extract::{Request, State}, http::{HeaderName, HeaderValue, StatusCode}, middleware::Next, response::{IntoResponse, Response}, Router
+    Router,
+    extract::{Request, State},
+    http::{HeaderName, HeaderValue, StatusCode},
+    middleware::Next,
+    response::{IntoResponse, Response},
 };
 use axum_extra::extract::CookieJar;
 use std::{cmp::Ordering, str::FromStr, sync::Arc};
@@ -9,8 +13,7 @@ use tracing::error;
 pub mod google_auth;
 
 pub fn routes(state: Arc<AuthState>) -> Router {
-    Router::new()
-        .nest_service("/google/", google_auth::routes(state))
+    Router::new().nest_service("/google/", google_auth::routes(state))
 }
 
 // auth middleware

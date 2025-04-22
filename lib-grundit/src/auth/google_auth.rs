@@ -26,11 +26,13 @@ use oauth2::{
 use std::env;
 
 use crate::{
-    error::AuthrError, types::{DataType, QueryTypes, RequestUser, User}, app::AuthState,
+    app::AuthState,
+    error::AuthrError,
+    types::{DataType, QueryTypes, RequestUser, User},
 };
+use lib_glonk::{store::Store, types::Query};
 use serde::{Deserialize, Serialize};
 use tracing::{error, info};
-use lib_glonk::{types::Query, store::Store};
 
 // there has to be a way to get rid of this
 // type SetClient<
@@ -225,7 +227,10 @@ pub async fn callback(
 
     (
         StatusCode::TEMPORARY_REDIRECT,
-        AppendHeaders([(SET_COOKIE, cookie.to_string().as_str()), (LOCATION, "/web")]),
+        AppendHeaders([
+            (SET_COOKIE, cookie.to_string().as_str()),
+            (LOCATION, "/web"),
+        ]),
     )
         .into_response()
 }
@@ -285,16 +290,15 @@ async fn get_google_user_info(
 
 async fn retrieve_or_create_user(user_info: GoogleUserInfo, state: Arc<AuthState>) -> Option<User> {
     let user = RequestUser::from(user_info);
-    let queries = vec![QueryTypes::try_from((&DataType::User, (&String::from("byGuid"), &user.guid.clone().unwrap())))].into_iter()
-        .filter_map(|qtr| { qtr.ok() })
-        .map(|qt| {
-            qt.into()
-        }).collect::<Vec<Box<dyn Query>>>();
-    let mut retrieved: Vec<User> =
-        state
-            .store
-            .clone()
-            .get_queries::<User>(queries);
+    let queries = vec![QueryTypes::try_from((
+        &DataType::User,
+        (&String::from("byGuid"), &user.guid.clone().unwrap()),
+    ))]
+    .into_iter()
+    .filter_map(|qtr| qtr.ok())
+    .map(|qt| qt.into())
+    .collect::<Vec<Box<dyn Query>>>();
+    let mut retrieved: Vec<User> = state.store.clone().get_queries::<User>(queries);
     match retrieved.len() {
         1 => retrieved.pop(),
         0 => {

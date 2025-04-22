@@ -2,7 +2,7 @@ use sqlite::{Connection, Value};
 use std::sync::Mutex;
 use tracing::debug;
 
-use crate::types::{RequestObject, DataObject, Query};
+use crate::types::{DataObject, Query, RequestObject};
 
 use super::{Store, error::StoreResult};
 
@@ -85,7 +85,11 @@ impl Store for SqliteStore {
     }
 
     fn get<T: DataObject>(&self, id: i64) -> Option<T> {
-        let query = format!("SELECT * FROM {} where ({} = ?)", T::table_name(), T::id_col());
+        let query = format!(
+            "SELECT * FROM {} where ({} = ?)",
+            T::table_name(),
+            T::id_col()
+        );
         if let Ok(conn) = self.conn.lock() {
             let mut statement = conn.prepare(query).unwrap();
             statement.bind((1, id)).unwrap();
@@ -132,10 +136,14 @@ impl Store for SqliteStore {
 
     fn delete<T: DataObject>(&self, id: i64, owner_id: Option<i64>) -> StoreResult<T> {
         let (clauses, params) = match owner_id {
-            Some(owner_id) if T::owner_id_col() == T::id_col() => {
-                (format!("({} = ? and {} = ?)", T::id_col(), T::owner_id_col()), vec![(1, Value::Integer(id)),(2, Value::Integer(owner_id))])
-            },
-            Some(_) | None => (format!("({} = ?)", T::id_col()), vec![(1, Value::Integer(id))]),
+            Some(owner_id) if T::owner_id_col() == T::id_col() => (
+                format!("({} = ? and {} = ?)", T::id_col(), T::owner_id_col()),
+                vec![(1, Value::Integer(id)), (2, Value::Integer(owner_id))],
+            ),
+            Some(_) | None => (
+                format!("({} = ?)", T::id_col()),
+                vec![(1, Value::Integer(id))],
+            ),
         };
         let query = format!(
             "DELETE FROM {} where {} returning {}",
@@ -145,7 +153,9 @@ impl Store for SqliteStore {
         );
         if let Ok(conn) = self.conn.lock() {
             let mut statement = conn.prepare(query).unwrap();
-            statement.bind::<&[(_, Value)]>(&params.as_slice()[..]).unwrap();
+            statement
+                .bind::<&[(_, Value)]>(&params.as_slice()[..])
+                .unwrap();
             let data: Vec<T> = T::from_rows(&mut statement);
             if data.len() >= 1 {
                 Ok(data[0].clone())

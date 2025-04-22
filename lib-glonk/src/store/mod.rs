@@ -1,7 +1,7 @@
 pub mod error;
 pub mod sqlitestore;
-pub use sqlitestore::SqliteStore;
 use error::StoreResult;
+pub use sqlitestore::SqliteStore;
 
 use crate::types::{DataObject, Query, RequestObject};
 

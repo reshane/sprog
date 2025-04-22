@@ -9,15 +9,30 @@ pub struct User {
     pub picture: String,
 }
 
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct RequestUser {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub id: Option<i64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub guid: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub name: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub email: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub picture: Option<String>,
+}
+
 #[cfg(feature = "full")]
 pub use ext::*;
 
 #[cfg(feature = "full")]
 mod ext {
-    use super::User;
-    use serde::{Deserialize, Serialize};
+    use super::{RequestUser, User};
+    use lib_glonk::types::{
+        Criteria, DataObject, EqualsCriteria, Query, RequestObject, ValidationError,
+    };
     use sqlite::{Bindable, BindableWithIndex, State, Statement};
-    use lib_glonk::types::{Criteria, DataObject, EqualsCriteria, Query, RequestObject, ValidationError};
     impl Bindable for User {
         fn bind(self, statement: &mut Statement) -> sqlite::Result<()> {
             self.id.clone().bind(statement, 1)?;
@@ -61,15 +76,6 @@ mod ext {
         }
     }
 
-    #[derive(Debug, Clone, Deserialize, Serialize)]
-    pub struct RequestUser {
-        pub id: Option<i64>,
-        pub guid: Option<String>,
-        pub name: Option<String>,
-        pub email: Option<String>,
-        pub picture: Option<String>,
-    }
-
     impl Bindable for RequestUser {
         fn bind(self, statement: &mut Statement) -> sqlite::Result<()> {
             let mut idx = 1;
@@ -99,17 +105,15 @@ mod ext {
     impl RequestObject for RequestUser {
         fn validate_create(&self, owner_id: Option<i64>) -> Result<(), ValidationError> {
             match self.id {
-                Some(request_data_owner_id) => {
-                    match owner_id {
-                        Some(owner_id) if owner_id != request_data_owner_id => {
-                            return Err(ValidationError::InvalidOwnerId(format!(
-                                "request header owner_id ({}) does not match data owner_id ({})",
-                                request_data_owner_id, owner_id
-                            )));
-                        },
-                        Some(_) | None => {},
+                Some(request_data_owner_id) => match owner_id {
+                    Some(owner_id) if owner_id != request_data_owner_id => {
+                        return Err(ValidationError::InvalidOwnerId(format!(
+                            "request header owner_id ({}) does not match data owner_id ({})",
+                            request_data_owner_id, owner_id
+                        )));
                     }
-                }
+                    Some(_) | None => {}
+                },
                 None => {
                     return Err(ValidationError::MissingRequiredOnCreate(String::from(
                         "owner_id",
@@ -159,17 +163,15 @@ mod ext {
 
         fn validate_update(&self, owner_id: Option<i64>) -> Result<(), ValidationError> {
             match self.id {
-                Some(request_data_owner_id) => {
-                    match owner_id {
-                        Some(owner_id) if owner_id != request_data_owner_id => {
-                            return Err(ValidationError::InvalidOwnerId(format!(
-                                "request header owner_id ({}) does not match data owner_id ({})",
-                                request_data_owner_id, owner_id
-                            )));
-                        },
-                        Some(_) | None => {},
+                Some(request_data_owner_id) => match owner_id {
+                    Some(owner_id) if owner_id != request_data_owner_id => {
+                        return Err(ValidationError::InvalidOwnerId(format!(
+                            "request header owner_id ({}) does not match data owner_id ({})",
+                            request_data_owner_id, owner_id
+                        )));
                     }
-                }
+                    Some(_) | None => {}
+                },
                 None => {
                     return Err(ValidationError::MissingRequiredOnCreate(String::from(
                         "owner_id",

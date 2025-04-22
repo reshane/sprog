@@ -7,16 +7,28 @@ pub struct Note {
     pub contents: String,
 }
 
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct RequestNote {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub id: Option<i64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub owner_id: Option<i64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub contents: Option<String>,
+}
+
 #[cfg(feature = "full")]
 pub use ext::*;
 
 #[cfg(feature = "full")]
 mod ext {
-    use super::Note;
-    use serde::{Deserialize, Serialize};
+    use super::{Note, RequestNote};
+    use lib_glonk::types::{
+        ContainsCriteria, Criteria, DataObject, EqualsCriteria, Query, RequestObject,
+        ValidationError,
+    };
     use sqlite::{Bindable, BindableWithIndex, State, Value};
     use tracing::error;
-    use lib_glonk::types::{Criteria, ContainsCriteria, DataObject, EqualsCriteria, Query, RequestObject, ValidationError};
     impl Bindable for Note {
         fn bind(self, statement: &mut sqlite::Statement) -> sqlite::Result<()> {
             self.id.clone().bind(statement, 1)?;
@@ -56,13 +68,6 @@ mod ext {
         }
     }
 
-    #[derive(Debug, Clone, Deserialize, Serialize)]
-    pub struct RequestNote {
-        pub id: Option<i64>,
-        pub owner_id: Option<i64>,
-        pub contents: Option<String>,
-    }
-
     impl Bindable for RequestNote {
         fn bind(self, statement: &mut sqlite::Statement) -> sqlite::Result<()> {
             let mut idx = 1;
@@ -84,17 +89,15 @@ mod ext {
     impl RequestObject for RequestNote {
         fn validate_create(&self, owner_id: Option<i64>) -> Result<(), ValidationError> {
             match self.owner_id {
-                Some(request_data_owner_id) => {
-                    match owner_id {
-                        Some(owner_id) if owner_id != request_data_owner_id => {
-                            return Err(ValidationError::InvalidOwnerId(format!(
-                                "request header owner_id ({}) does not match data owner_id ({})",
-                                request_data_owner_id, owner_id
-                            )));
-                        },
-                        Some(_) | None => {},
+                Some(request_data_owner_id) => match owner_id {
+                    Some(owner_id) if owner_id != request_data_owner_id => {
+                        return Err(ValidationError::InvalidOwnerId(format!(
+                            "request header owner_id ({}) does not match data owner_id ({})",
+                            request_data_owner_id, owner_id
+                        )));
                     }
-                }
+                    Some(_) | None => {}
+                },
                 None => {
                     return Err(ValidationError::MissingRequiredOnCreate(String::from(
                         "owner_id",
@@ -120,17 +123,15 @@ mod ext {
 
         fn validate_update(&self, owner_id: Option<i64>) -> Result<(), ValidationError> {
             match self.owner_id {
-                Some(request_data_owner_id) => {
-                    match owner_id {
-                        Some(owner_id) if owner_id != request_data_owner_id => {
-                            return Err(ValidationError::InvalidOwnerId(format!(
-                                "request header owner_id ({}) does not match data owner_id ({})",
-                                request_data_owner_id, owner_id
-                            )));
-                        },
-                        Some(_) | None => {},
+                Some(request_data_owner_id) => match owner_id {
+                    Some(owner_id) if owner_id != request_data_owner_id => {
+                        return Err(ValidationError::InvalidOwnerId(format!(
+                            "request header owner_id ({}) does not match data owner_id ({})",
+                            request_data_owner_id, owner_id
+                        )));
                     }
-                }
+                    Some(_) | None => {}
+                },
                 None => {
                     return Err(ValidationError::MissingRequiredOnCreate(String::from(
                         "owner_id",
@@ -211,12 +212,12 @@ mod ext {
                         Err(e) => {
                             error!("{:?}", e);
                             return Err(());
-                        },
+                        }
                     };
                     Ok(Self::ByOwnerId(NoteByOwnerId::new(id)))
-                },
+                }
                 _ => {
-                    error!("Unrecognized query for Note: {:?}", (q,v));
+                    error!("Unrecognized query for Note: {:?}", (q, v));
                     Err(())
                 }
             }
@@ -234,7 +235,7 @@ mod ext {
                 inner: EqualsCriteria {
                     field: String::from("owner_id"),
                     val: Value::Integer(val),
-                }
+                },
             }
         }
     }

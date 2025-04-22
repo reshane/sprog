@@ -1,26 +1,31 @@
-use yew::prelude::*;
 use gloo_net::http::Request;
 use lib_grundit::types::{Comment, Note, User};
+use yew::prelude::*;
 
 #[derive(Properties, PartialEq)]
-struct UserComponentProps{
+struct UserComponentProps {
     users: Vec<User>,
 }
 
 #[function_component(UserComponent)]
 fn user_component(UserComponentProps { users }: &UserComponentProps) -> Html {
-    users.iter().map(|user| html!{
-        <div style={"display: flex; padding: 5px;"}>
-            <img src={user.picture.clone()}/>
-            <span style={ "display: flex; flex-direction: column; padding-left: 5px;" }>
-                <span>{user.id}</span>
-                <span>{format!("{}", user.name)}</span>
-                <span>{format!("{}", user.guid)}</span>
-                <span>{format!("{}", user.email)}</span>
-                <a href={format!("/data/note?byOwnerId={}", user.id)}>{ "notes" }</a>
-            </span>
-        </div>
-    }).collect()
+    users
+        .iter()
+        .map(|user| {
+            html! {
+                <div style={"display: flex; padding: 5px;"}>
+                    <img src={user.picture.clone()}/>
+                    <span style={ "display: flex; flex-direction: column; padding-left: 5px;" }>
+                        <span>{user.id}</span>
+                        <span>{format!("{}", user.name)}</span>
+                        <span>{format!("{}", user.guid)}</span>
+                        <span>{format!("{}", user.email)}</span>
+                        <a href={format!("/data/note?byOwnerId={}", user.id)}>{ "notes" }</a>
+                    </span>
+                </div>
+            }
+        })
+        .collect()
 }
 
 #[derive(Properties, PartialEq)]
@@ -30,15 +35,20 @@ struct NoteComponentProps {
 
 #[function_component(NoteComponent)]
 fn note_component(NoteComponentProps { notes }: &NoteComponentProps) -> Html {
-    notes.iter().map(|note| html!{
-        <div style={"display: flex; padding: 5px;"}>
-            <span style={ "display: flex; flex-direction: column; padding-left: 5px;" }>
-                <span>{note.id}</span>
-                <span>{format!("{}", note.contents)}</span>
-                <a href={format!("/data/comment?byNoteId={}", note.id)}>{ "comments" }</a>
-            </span>
-        </div>
-    }).collect()
+    notes
+        .iter()
+        .map(|note| {
+            html! {
+                <div style={"display: flex; padding: 5px;"}>
+                    <span style={ "display: flex; flex-direction: column; padding-left: 5px;" }>
+                        <span>{note.id}</span>
+                        <span>{format!("{}", note.contents)}</span>
+                        <a href={format!("/data/comment?byNoteId={}", note.id)}>{ "comments" }</a>
+                    </span>
+                </div>
+            }
+        })
+        .collect()
 }
 
 #[derive(Properties, PartialEq)]
@@ -48,14 +58,19 @@ struct CommentComponentProps {
 
 #[function_component(CommentComponent)]
 fn comment_component(CommentComponentProps { comments }: &CommentComponentProps) -> Html {
-    comments.iter().map(|comment| html!{
-        <div style={"display: flex; padding: 5px;"}>
-            <span style={ "display: flex; flex-direction: column; padding-left: 5px;" }>
-                <span>{comment.id}</span>
-                <span>{format!("{}", comment.contents)}</span>
-            </span>
-        </div>
-    }).collect()
+    comments
+        .iter()
+        .map(|comment| {
+            html! {
+                <div style={"display: flex; padding: 5px;"}>
+                    <span style={ "display: flex; flex-direction: column; padding-left: 5px;" }>
+                        <span>{comment.id}</span>
+                        <span>{format!("{}", comment.contents)}</span>
+                    </span>
+                </div>
+            }
+        })
+        .collect()
 }
 
 #[function_component]
@@ -67,19 +82,17 @@ fn App() -> Html {
             let users = users.clone();
             wasm_bindgen_futures::spawn_local(async move {
                 match Request::get("/data/user").send().await {
-                    Ok(data) => {
-                        match data.json::<Vec<User>>().await {
-                            Ok(json) => {
-                                users.set(json);
-                            },
-                            Err(e) => {
-                                log::error!("{:?}", e);
-                            },
+                    Ok(data) => match data.json::<Vec<User>>().await {
+                        Ok(json) => {
+                            users.set(json);
+                        }
+                        Err(e) => {
+                            log::error!("{:?}", e);
                         }
                     },
                     Err(e) => {
                         log::error!("{:?}", e);
-                    },
+                    }
                 }
             });
         });
@@ -92,19 +105,17 @@ fn App() -> Html {
             let notes = notes.clone();
             wasm_bindgen_futures::spawn_local(async move {
                 match Request::get("/data/note").send().await {
-                    Ok(data) => {
-                        match data.json::<Vec<Note>>().await {
-                            Ok(json) => {
-                                notes.set(json);
-                            },
-                            Err(e) => {
-                                log::error!("{:?}", e);
-                            },
+                    Ok(data) => match data.json::<Vec<Note>>().await {
+                        Ok(json) => {
+                            notes.set(json);
+                        }
+                        Err(e) => {
+                            log::error!("{:?}", e);
                         }
                     },
                     Err(e) => {
                         log::error!("{:?}", e);
-                    },
+                    }
                 }
             });
         });
@@ -117,19 +128,17 @@ fn App() -> Html {
             let comments = comments.clone();
             wasm_bindgen_futures::spawn_local(async move {
                 match Request::get("/data/comment").send().await {
-                    Ok(data) => {
-                        match data.json::<Vec<Comment>>().await {
-                            Ok(json) => {
-                                comments.set(json);
-                            },
-                            Err(e) => {
-                                log::error!("{:?}", e);
-                            },
+                    Ok(data) => match data.json::<Vec<Comment>>().await {
+                        Ok(json) => {
+                            comments.set(json);
+                        }
+                        Err(e) => {
+                            log::error!("{:?}", e);
                         }
                     },
                     Err(e) => {
                         log::error!("{:?}", e);
-                    },
+                    }
                 }
             });
         });

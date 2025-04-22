@@ -2,9 +2,9 @@ use std::env;
 use tokio::net::TcpListener;
 use tracing_subscriber::prelude::*;
 
+use lib_glonk::store::SqliteStore;
 use lib_grundit::{AuthrState, auth::google_auth::GoogleAuthClient, run};
 use tracing::info;
-use lib_glonk::store::SqliteStore;
 
 #[tokio::main]
 async fn main() {

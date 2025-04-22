@@ -1,13 +1,17 @@
-use wasm_bindgen::prelude::*;
-use std::{cell::RefCell, fmt::{Display, Formatter}, rc::Rc};
-use web_sys::{console, HtmlCanvasElement, Position};
 use lib_grundit::types::{Punch, RequestPunch, User};
-use wasm_bindgen_futures::{spawn_local, JsFuture};
+use std::{
+    cell::RefCell,
+    fmt::{Display, Formatter},
+    rc::Rc,
+};
+use wasm_bindgen::prelude::*;
+use wasm_bindgen_futures::{JsFuture, spawn_local};
+use web_sys::{HtmlCanvasElement, Position, console};
 use web_sys::{Request, RequestInit, RequestMode, Response};
 
 const CELL_SIZE: u32 = 5;
 const GRID_COLOR: &'static str = "#CCCCCC";
-const DEAD_COLOR: &'static str  = "#FFFFFF";
+const DEAD_COLOR: &'static str = "#FFFFFF";
 const ALIVE_COLOR: &'static str = "#000000";
 
 fn window() -> web_sys::Window {
@@ -16,7 +20,7 @@ fn window() -> web_sys::Window {
 
 fn request_animation_frame(f: &Closure<dyn FnMut()>) {
     window()
-    .request_animation_frame(f.as_ref().unchecked_ref())
+        .request_animation_frame(f.as_ref().unchecked_ref())
         .expect("should be able to request animation frame");
 }
 
@@ -131,8 +135,8 @@ pub async fn run() -> Result<(), JsValue> {
         match get_user().await {
             Ok(user_data) => {
                 *user.borrow_mut() = Some(user_data);
-            },
-            Err(()) => {},
+            }
+            Err(()) => {}
         }
     }
 
@@ -142,7 +146,12 @@ pub async fn run() -> Result<(), JsValue> {
             let punch = RequestPunch {
                 id: None,
                 owner_id: Some(user_data.id),
-                geo: Some(format!("timestamp: {}, lat: {} lon: {}", position.timestamp(), position.coords().latitude(), position.coords().longitude())),
+                geo: Some(format!(
+                    "timestamp: {}, lat: {} lon: {}",
+                    position.timestamp(),
+                    position.coords().latitude(),
+                    position.coords().longitude()
+                )),
             };
             spawn_local(post_punch_1(punch, vec![]));
         }
@@ -160,8 +169,14 @@ pub async fn run() -> Result<(), JsValue> {
     {
         let mut universe = Universe::new();
         let canvas = canvas();
-        canvas.set_attribute("width", format!("{}", (CELL_SIZE + 1) * universe.width() + 1).as_str())?;
-        canvas.set_attribute("height", format!("{}", (CELL_SIZE + 1) * universe.height() + 1).as_str())?;
+        canvas.set_attribute(
+            "width",
+            format!("{}", (CELL_SIZE + 1) * universe.width() + 1).as_str(),
+        )?;
+        canvas.set_attribute(
+            "height",
+            format!("{}", (CELL_SIZE + 1) * universe.height() + 1).as_str(),
+        )?;
         *g.borrow_mut() = Some(Closure::wrap(Box::new(move || {
             universe.tick();
             draw_grid(&canvas, universe.width(), universe.height());
@@ -176,7 +191,8 @@ pub async fn run() -> Result<(), JsValue> {
 }
 
 fn draw_grid(canvas: &HtmlCanvasElement, width: u32, height: u32) {
-    let ctx = canvas.get_context("2d")
+    let ctx = canvas
+        .get_context("2d")
         .unwrap()
         .unwrap()
         .dyn_into::<web_sys::CanvasRenderingContext2d>()
@@ -187,13 +203,19 @@ fn draw_grid(canvas: &HtmlCanvasElement, width: u32, height: u32) {
     // Vertical lines
     for i in 0..width {
         ctx.move_to((i * (CELL_SIZE + 1) + 1) as f64, 0_f64);
-        ctx.line_to((i * (CELL_SIZE + 1) + 1) as f64, ((CELL_SIZE + 1) * height + 1) as f64);
+        ctx.line_to(
+            (i * (CELL_SIZE + 1) + 1) as f64,
+            ((CELL_SIZE + 1) * height + 1) as f64,
+        );
     }
 
     // Horizontal lines
     for i in 0..height {
         ctx.move_to(0_f64, (i * (CELL_SIZE + 1) + 1) as f64);
-        ctx.line_to(((CELL_SIZE + 1) * width + 1) as f64, (i * (CELL_SIZE + 1) + 1) as f64);
+        ctx.line_to(
+            ((CELL_SIZE + 1) * width + 1) as f64,
+            (i * (CELL_SIZE + 1) + 1) as f64,
+        );
     }
 
     ctx.stroke();
@@ -201,7 +223,8 @@ fn draw_grid(canvas: &HtmlCanvasElement, width: u32, height: u32) {
 
 fn draw_cells(canvas: &HtmlCanvasElement, universe: &Universe) {
     let (width, height) = (universe.width(), universe.height());
-    let ctx = canvas.get_context("2d")
+    let ctx = canvas
+        .get_context("2d")
         .unwrap()
         .unwrap()
         .dyn_into::<web_sys::CanvasRenderingContext2d>()
@@ -219,7 +242,8 @@ fn draw_cells(canvas: &HtmlCanvasElement, universe: &Universe) {
             ctx.fill_rect(
                 (col * (CELL_SIZE + 1) + 1) as f64,
                 (row * (CELL_SIZE + 1) + 1) as f64,
-                CELL_SIZE as f64, CELL_SIZE as f64
+                CELL_SIZE as f64,
+                CELL_SIZE as f64,
             );
         }
     }
@@ -274,7 +298,7 @@ impl Universe {
 
     pub fn tick(&mut self) {
         let mut next = self.cells.clone();
-        
+
         for row in 0..self.height {
             for col in 0..self.width {
                 let idx = self.get_idx(row, col);
@@ -303,7 +327,8 @@ impl Universe {
                 } else {
                     Cell::Dead
                 }
-            }).collect();
+            })
+            .collect();
         Universe {
             width,
             height,
@@ -319,4 +344,3 @@ impl Universe {
         self.height as u32
     }
 }
-

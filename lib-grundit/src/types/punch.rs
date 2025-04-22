@@ -23,9 +23,11 @@ pub use ext::*;
 #[cfg(feature = "full")]
 mod ext {
     use super::{Punch, RequestPunch};
+    use lib_glonk::types::{
+        Criteria, DataObject, EqualsCriteria, Query, RequestObject, ValidationError,
+    };
     use sqlite::{Bindable, BindableWithIndex, State, Value};
     use tracing::error;
-    use lib_glonk::types::{Criteria, DataObject, EqualsCriteria, Query, RequestObject, ValidationError};
     impl Bindable for Punch {
         fn bind(self, statement: &mut sqlite::Statement) -> sqlite::Result<()> {
             self.id.clone().bind(statement, 1)?;
@@ -86,17 +88,15 @@ mod ext {
     impl RequestObject for RequestPunch {
         fn validate_create(&self, owner_id: Option<i64>) -> Result<(), ValidationError> {
             match self.owner_id {
-                Some(request_data_owner_id) => {
-                    match owner_id {
-                        Some(owner_id) if owner_id != request_data_owner_id => {
-                            return Err(ValidationError::InvalidOwnerId(format!(
-                                "request header owner_id ({}) does not match data owner_id ({})",
-                                request_data_owner_id, owner_id
-                            )));
-                        },
-                        Some(_) | None => {},
+                Some(request_data_owner_id) => match owner_id {
+                    Some(owner_id) if owner_id != request_data_owner_id => {
+                        return Err(ValidationError::InvalidOwnerId(format!(
+                            "request header owner_id ({}) does not match data owner_id ({})",
+                            request_data_owner_id, owner_id
+                        )));
                     }
-                }
+                    Some(_) | None => {}
+                },
                 None => {
                     return Err(ValidationError::MissingRequiredOnCreate(String::from(
                         "owner_id",
@@ -122,17 +122,15 @@ mod ext {
 
         fn validate_update(&self, owner_id: Option<i64>) -> Result<(), ValidationError> {
             match self.owner_id {
-                Some(request_data_owner_id) => {
-                    match owner_id {
-                        Some(owner_id) if owner_id != request_data_owner_id => {
-                            return Err(ValidationError::InvalidOwnerId(format!(
-                                "request header owner_id ({}) does not match data owner_id ({})",
-                                request_data_owner_id, owner_id
-                            )));
-                        },
-                        Some(_) | None => {},
+                Some(request_data_owner_id) => match owner_id {
+                    Some(owner_id) if owner_id != request_data_owner_id => {
+                        return Err(ValidationError::InvalidOwnerId(format!(
+                            "request header owner_id ({}) does not match data owner_id ({})",
+                            request_data_owner_id, owner_id
+                        )));
                     }
-                }
+                    Some(_) | None => {}
+                },
                 None => {
                     return Err(ValidationError::MissingRequiredOnCreate(String::from(
                         "owner_id",
@@ -208,12 +206,12 @@ mod ext {
                         Err(e) => {
                             error!("{:?}", e);
                             return Err(());
-                        },
+                        }
                     };
                     Ok(Self::ByOwnerId(PunchByOwnerId::new(id)))
-                },
+                }
                 _ => {
-                    error!("Unrecognized query for Note: {:?}", (q,v));
+                    error!("Unrecognized query for Note: {:?}", (q, v));
                     Err(())
                 }
             }
@@ -231,7 +229,7 @@ mod ext {
                 inner: EqualsCriteria {
                     field: String::from("owner_id"),
                     val: Value::Integer(val),
-                }
+                },
             }
         }
     }
